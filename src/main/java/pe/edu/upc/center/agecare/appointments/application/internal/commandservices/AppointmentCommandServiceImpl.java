@@ -7,6 +7,7 @@ import pe.edu.upc.center.agecare.appointments.domain.model.commands.DeleteAppoin
 import pe.edu.upc.center.agecare.appointments.domain.model.commands.UpdateAppointmentCommand;
 import pe.edu.upc.center.agecare.appointments.domain.services.AppointmentCommandService;
 import pe.edu.upc.center.agecare.appointments.infrastructure.persistence.jpa.repositories.AppointmentRepository;
+import pe.edu.upc.center.agecare.appointments.infrastructure.integration.NotificationServiceClient;
 
 import java.util.Optional;
 import java.time.LocalTime;
@@ -16,9 +17,12 @@ import java.time.LocalTime;
 public class AppointmentCommandServiceImpl implements AppointmentCommandService {
 
   private final AppointmentRepository appointmentRepository;
+  private final NotificationServiceClient notificationServiceClient;
 
-  public AppointmentCommandServiceImpl(AppointmentRepository appointmentRepository) {
+  public AppointmentCommandServiceImpl(AppointmentRepository appointmentRepository,
+                                       NotificationServiceClient notificationServiceClient) {
     this.appointmentRepository = appointmentRepository;
+    this.notificationServiceClient = notificationServiceClient;
   }
 
   @Override
@@ -35,6 +39,16 @@ public class AppointmentCommandServiceImpl implements AppointmentCommandService 
     Appointment appointment = new Appointment(command);
     try {
       this.appointmentRepository.save(appointment);
+      
+      // 🔗 INTEGRACIÓN: Enviar notificación al residente sobre la cita creada
+      String message = String.format(
+          "Su cita médica ha sido programada para el %s a las %s. Estado: %s",
+          command.dateTime().date(),
+          command.dateTime().time(),
+          command.status()
+      );
+      notificationServiceClient.sendNotification(command.residentId().residentId(), message);
+      
     } catch (Exception e) {
       throw new IllegalArgumentException("Error while saving appointment: " + e.getMessage());
     }
@@ -64,6 +78,16 @@ public class AppointmentCommandServiceImpl implements AppointmentCommandService 
 
     try {
       var updatedAppointment = this.appointmentRepository.save(appointmentToUpdate);
+      
+      // 🔗 INTEGRACIÓN: Enviar notificación al residente sobre la cita actualizada
+      String message = String.format(
+          "Su cita médica ha sido actualizada. Nueva fecha: %s a las %s. Estado: %s",
+          command.dateTime().date(),
+          command.dateTime().time(),
+          command.status()
+      );
+      notificationServiceClient.sendNotification(command.residentId().residentId(), message);
+      
       return Optional.of(updatedAppointment);
     } catch (Exception e) {
       throw new IllegalArgumentException("Error while updating appointment: " + e.getMessage());
@@ -77,7 +101,20 @@ public class AppointmentCommandServiceImpl implements AppointmentCommandService 
     }
 
     try {
+      // Obtener la cita antes de eliminarla para enviar notificación
+      var appointment = this.appointmentRepository.findById(command.appointmentId()).get();
+      Long residentId = appointment.getResidentId().residentId();
+      
       this.appointmentRepository.deleteById(command.appointmentId());
+      
+      // 🔗 INTEGRACIÓN: Enviar notificación al residente sobre la cita cancelada
+      String message = String.format(
+          "Su cita médica del %s a las %s ha sido cancelada.",
+          appointment.getDateTime().date(),
+          appointment.getDateTime().time()
+      );
+      notificationServiceClient.sendNotification(residentId, message);
+      
     } catch (Exception e) {
       throw new IllegalArgumentException("Error while deleting appointment: " + e.getMessage());
     }
