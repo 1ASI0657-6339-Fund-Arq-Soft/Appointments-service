@@ -74,22 +74,7 @@ public class AppointmentsController {
         return ResponseEntity.ok(resources);
     }
 
-    @Operation(
-            summary = "Get appointment by ID",
-            description = "Retrieve a specific medical appointment by its unique identifier."
-    )
-    @GetMapping("/{appointmentId}")
-    public ResponseEntity<AppointmentResource> getAppointmentById(@PathVariable Long appointmentId) {
-        var query = new GetAppointmentByIdQuery(appointmentId);
-        var optionalAppointment = appointmentQueryService.handle(query);
-
-        if (optionalAppointment.isEmpty()) {
-            return ResponseEntity.badRequest().build();
-        }
-
-        var resource = AppointmentResourceFromEntityAssembler.toResourceFromEntity(optionalAppointment.get());
-        return ResponseEntity.ok(resource);
-    }
+    // Get by appointmentId removed as requested
 
     @Operation(
             summary = "Update an appointment",
