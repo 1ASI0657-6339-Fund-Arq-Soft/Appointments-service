@@ -8,6 +8,8 @@ import pe.edu.upc.center.agecare.appointments.domain.model.commands.UpdateAppoin
 import pe.edu.upc.center.agecare.appointments.domain.services.AppointmentCommandService;
 import pe.edu.upc.center.agecare.appointments.infrastructure.persistence.jpa.repositories.AppointmentRepository;
 import pe.edu.upc.center.agecare.appointments.infrastructure.integration.NotificationServiceClient;
+import pe.edu.upc.center.agecare.appointments.infrastructure.integration.UsersServiceClient;
+import pe.edu.upc.center.agecare.appointments.infrastructure.integration.ResidentsServiceClient;
 
 import java.util.Optional;
 import java.time.LocalTime;
@@ -18,12 +20,18 @@ public class AppointmentCommandServiceImpl implements AppointmentCommandService 
 
   private final AppointmentRepository appointmentRepository;
   private final NotificationServiceClient notificationServiceClient;
+  private final UsersServiceClient usersServiceClient;
+  private final ResidentsServiceClient residentsServiceClient;
 
   public AppointmentCommandServiceImpl(AppointmentRepository appointmentRepository,
-                                       NotificationServiceClient notificationServiceClient) {
+                                       NotificationServiceClient notificationServiceClient,
+                                       UsersServiceClient usersServiceClient,
+                                       ResidentsServiceClient residentsServiceClient) {
     this.appointmentRepository = appointmentRepository;
     this.notificationServiceClient = notificationServiceClient;
-  }
+    this.usersServiceClient = usersServiceClient;
+    this.residentsServiceClient = residentsServiceClient;
+    }
 
   @Override
   public Long handle(CreateAppointmentCommand command) {
@@ -32,6 +40,15 @@ public class AppointmentCommandServiceImpl implements AppointmentCommandService 
       throw new IllegalArgumentException("Appointments can only be registered between 08:00 and 20:00.");
     }
 
+    // Verify referenced resident exists in Residents service
+    if (!residentsServiceClient.residentExists(command.residentId().residentId())) {
+      throw new IllegalArgumentException("Referenced resident with id " + command.residentId().residentId() + " does not exist");
+    }
+
+    // Verify referenced doctor exists in Users service
+    if (!usersServiceClient.doctorExists(command.doctorId().doctorId())) {
+      throw new IllegalArgumentException("Referenced doctor with id " + command.doctorId().doctorId() + " does not exist");
+    }
     if (this.appointmentRepository.existsByDateTime_DateAndDateTime_TimeAndDoctorId_DoctorId(command.dateTime().date(), command.dateTime().time(), command.doctorId().doctorId())) {
       throw new IllegalArgumentException("Appointment with the doctor "+ command.doctorId().doctorId() +" with date " + command.dateTime().date() + " and time " + command.dateTime().time() + " already exists");
     }
